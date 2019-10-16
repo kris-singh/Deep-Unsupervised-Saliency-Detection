@@ -17,7 +17,7 @@ class NoiseModule:
         self.num_pixels = self.h * self.w
         self.alpha = cfg.NOISE.ALPHA
         self.device = cfg.SYSTEM.DEVICE
-        self.noise_variance = torch.zeros(self.num_imgs * self.num_pixels) + 0.001
+        self.noise_variance = torch.zeros(self.num_imgs * self.num_pixels)
         self.mean = torch.zeros(self.noise_variance.shape[0])
 
     def get_index(self, arr=None, img_idx=None):
@@ -56,8 +56,9 @@ class NoiseModule:
             var += 1e-6
             var = torch.diag(var).to(self.device)
             mean = torch.zeros(var.shape[0]).to(self.device)
+            dist = torch.distributions.MultivariateNormal(mean, var)
             for map_idx in range(self.num_maps):
-                sample = torch.distributions.MultivariateNormal(mean, var).sample().view(self.h, self.w)
+                sample = dist.sample().view(self.h, self.w)
                 samples[idx][map_idx] = sample
         return samples
 
@@ -68,7 +69,7 @@ class NoiseModule:
         var, update_index = self.get_index_multiple(img_idxs=idxs)
         var = torch.tensor(var, dtype=torch.float).cpu()
         var = var
-        var = var + self.alpha * pred_var - var
+        var = torch.sqrt(var**2 + self.alpha * (pred_var - var)**2)
         for idx, u_idx in enumerate(update_index):
             u_idx = u_idx.astype(np.int)
             self.noise_variance[u_idx] = torch.sqrt(var[idx])

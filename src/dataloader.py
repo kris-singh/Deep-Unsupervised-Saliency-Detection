@@ -17,7 +17,6 @@ class ImageDataTrain(data.Dataset):
         self.sal_root = data_root
         self.sal_source = data_list
         self.noisy_path = noise_root
-
         with open(self.sal_source, 'r') as f:
             self.sal_list = [x.strip() for x in f.readlines()]
 
@@ -50,15 +49,20 @@ class ImageDataTest(data.Dataset):
         self.data_root = data_root
         self.data_list = data_list
         with open(self.data_list, 'r') as f:
-            self.image_list = [x.strip() for x in f.readlines()]
+            self.img_list = [x.strip() for x in f.readlines()]
 
-        self.image_num = len(self.image_list)
+        self.image_num = len(self.img_list)
 
     def __getitem__(self, item):
-        image, im_size = load_image_test(os.path.join(self.data_root, self.image_list[item]))
+        # import ipdb; ipdb.set_trace()
+        im_name = self.img_list[item % self.image_num].split()[0]
+        gt_name = self.img_list[item % self.image_num].split()[1]
+        image = load_image(os.path.join(self.data_root, im_name))
         image = torch.Tensor(image)
+        sal_label = load_sal_label(os.path.join(self.data_root, gt_name))
+        sal_label = torch.Tensor(sal_label)
 
-        return {'image': image, 'name': self.image_list[item % self.image_num], 'size': im_size}
+        return {'image': image, 'label': sal_label}
 
     def __len__(self):
         return self.image_num
@@ -78,6 +82,12 @@ def get_loader(config, mode='train', pin=False):
         data_loader = data.DataLoader(dataset=dataset, batch_size=config.VAL.BATCH_SIZE,
                                       shuffle=shuffle, num_workers=config.SYSTEM.NUM_WORKERS,
                                       pin_memory=pin, drop_last=True)
+    if mode == 'test':
+        shuffle = False
+        dataset = ImageDataTest(config.TEST.ROOT, config.TEST.LIST)
+        data_loader = data.DataLoader(dataset=dataset, batch_size=config.TEST.BATCH_SIZE,
+                                      shuffle=shuffle, num_workers=config.SYSTEM.NUM_WORKERS,
+                                      pin_memory=pin, drop_last=True)
     return data_loader
 
 def load_image(path, noise=False):
@@ -94,15 +104,6 @@ def load_image(path, noise=False):
         in_ = in_.transpose((2,0,1))
     return in_
 
-def load_image_test(path):
-    if not os.path.exists(path):
-        print('File {} not exists'.format(path))
-    im = cv2.imread(path)
-    in_ = np.array(im, dtype=np.float32)
-    im_size = tuple(in_.shape[:2])
-    in_ -= np.array((104.00699, 116.66877, 122.67892))
-    in_ = in_.transpose((2,0,1))
-    return in_, im_size
 
 def load_sal_label(path):
     if not os.path.exists(path):
