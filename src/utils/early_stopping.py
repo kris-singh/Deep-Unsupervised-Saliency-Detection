@@ -9,7 +9,8 @@ def check_cgt(cfg, model, val_loader, epoch_idx, wait, val_losses):
     cgt = 0
     loss = validate(cfg, model, val_loader, epoch_idx, logger)
     val_losses.append(loss.detach().cpu())
-    if len(val_losses) > 2 and val_losses[-1] >= val_losses[-2]:
+    if len(val_losses) > 2 and abs(val_losses[-1]-val_losses[-2]) <= 1e-4:
+        print(val_losses[-1]-val_losses[-2])
         if wait > wait_period:
             cgt, wait = 1, 0
         else:
@@ -23,12 +24,12 @@ def check_cgt(cfg, model, val_loader, epoch_idx, wait, val_losses):
 def validate(cfg, model, val_loader, epoch, logger):
     model.eval()
     pred_loss = torch.nn.BCEWithLogitsLoss()
-    loss = 0.0
+    losses = []
     for idx, data in enumerate(val_loader):
         x = data['sal_image'].to(cfg.SYSTEM.DEVICE)
         y = data['sal_label'].to(cfg.SYSTEM.DEVICE)
         y_pred = model(x)['out']
-        loss += pred_loss(y_pred, y)
-        if idx % cfg.SYSTEM.LOG_FREQ == 0:
-            logger.debug(f'Validation Loss: epoch={epoch}, batch_id={idx}, loss={loss}')
-    return loss / cfg.VAL.BATCH_SIZE
+        losses.append((pred_loss(y_pred, y)))
+
+    logger.debug(f'Validation Loss: loss={sum(losses)/len(losses)}')
+    return sum(losses)/len(losses)
