@@ -15,7 +15,7 @@ from checkpoint import Checkpointer
 from config import cfg
 from dataloader import get_loader
 from model import BaseModule, NoiseModule
-from utils.early_stopping import check_cgt
+from utils.early_stopping import EarlyStopping
 from utils.math_utils import max2d, min2d
 from utils.metrics import log_metrics
 from utils.save import save_config
@@ -36,6 +36,7 @@ def train(cfg, model, optimizer, scheduler, loader, chkpt, writer, offset):
     train_noise = False
     pred_model, noise_model = model
     val_losses = []
+    early_stopping = EarlyStopping(pred_model, val_loader, cfg)
     writer_idx = 0
     cgt, wait = 0, 0
     for epoch in range(cfg.TRAIN.EPOCHS):
@@ -100,22 +101,22 @@ def train(cfg, model, optimizer, scheduler, loader, chkpt, writer, offset):
                 logger.debug(f'epoch={epoch}, batch_id={batch_idx}, loss={total_loss}')
                 writer.add_scalar('loss', pred_loss, writer_idx)
                 visualize_results(pred_model, cfg, writer_idx, writer)
+            early_stopping.validate(writer, writer_idx)
 
             cgt, wait = check_cgt(cfg, pred_model, val_loader, epoch, wait, val_losses)
             if cfg.SYSTEM.EXP_NAME in ['real', 'avg', 'noise']:
                 train_noise = 0
-                if cgt:
+                if early_stopping.converged:
                     return
             else:
-                if cgt == 1 and train_noise == 0:
+                if early_stopping.converged == 1 and train_noise == 0:
                     logger.info('Training Noise Module')
                     train_noise = 1
-                    cgt, wait = 0, 0
-                elif cgt==1 and train_noise == 1:
+                    early_stopping.reset()
+                elif early_stopping.converged == 1 and train_noise == 1:
                     logger.info('Updating Noise Variance')
                     noise_model.update(item_idxs, pred_var)
-                    cgt, wait = 0, 0
-        scheduler.step(total_loss)
+                    early_stopping.reset()
         writer.add_scalar('lr', scheduler.optimizer.param_groups[0]['lr'], writer_idx)
         metrics = log_metrics(pred, y)
         logger.info(str(metrics))
@@ -123,6 +124,7 @@ def train(cfg, model, optimizer, scheduler, loader, chkpt, writer, offset):
         if epoch % cfg.SYSTEM.CHKPT_FREQ == 0:
             fn = f'checkpoint_epoch_{epoch+offset}'
             chkpt.save(fn)
+    return early_stopping.val_loss.meters['val_loss'].avg
 
 def test(cfg, model, loader, writer):
     pred_model, _ = model
