@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 import numpy as np
-from meter import MetricLogger
-from commons1 import to_np, count_nonzero
+from utils.meter import MetricLogger
+from utils.basic import to_np, count_nonzero
 
 meter = MetricLogger()
 
