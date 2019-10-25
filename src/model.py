@@ -11,9 +11,9 @@ from collections import defaultdict, Iterable
 class NoiseModule:
     def __init__(self, cfg):
         super(NoiseModule, self).__init__()
-        self.num_imgs = cfg.TRAIN.NUM_IMG
-        self.num_maps = cfg.TRAIN.NUM_MAPS
-        self.h, self.w = cfg.TRAIN.IMG_SIZE
+        self.num_imgs = cfg.SOLVER.NUM_IMG
+        self.num_maps = cfg.SOLVER.NUM_MAPS
+        self.h, self.w = cfg.SOLVER.IMG_SIZE
         self.num_pixels = self.h * self.w
         self.alpha = cfg.NOISE.ALPHA
         self.device = cfg.SYSTEM.DEVICE

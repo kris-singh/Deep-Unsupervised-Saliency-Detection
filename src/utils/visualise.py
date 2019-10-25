@@ -6,10 +6,10 @@ from torchvision.transforms.functional import to_tensor
 
 
 def visualize_results(model, cfg, idx, writer):
-    images = torch.zeros((9, 1, *cfg.TRAIN.IMG_SIZE))
+    images = torch.zeros((9, 1, *cfg.SOLVER.IMG_SIZE))
     for img_idx, path in enumerate(glob.glob('../images/*.png')):
         im = Image.open(path)
-        im = im.resize(cfg.TRAIN.IMG_SIZE)
+        im = im.resize(cfg.SOLVER.IMG_SIZE)
         in_ = to_tensor(im).to(cfg.SYSTEM.DEVICE)
         images[img_idx][:] = in_
 
@@ -17,7 +17,7 @@ def visualize_results(model, cfg, idx, writer):
     images = []
     for path in glob.glob('../images/*.jpg'):
         im = Image.open(path)
-        im = im.resize(cfg.TRAIN.IMG_SIZE)
+        im = im.resize(cfg.SOLVER.IMG_SIZE)
         in_ = to_tensor(im).to(cfg.SYSTEM.DEVICE)
         images.append(in_)
     images = torch.stack(images)

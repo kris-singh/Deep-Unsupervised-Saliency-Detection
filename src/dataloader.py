@@ -70,20 +70,20 @@ def get_loader(config, mode='train', pin=False):
     shuffle = False
     if mode == 'train':
         shuffle = True
-        dataset = ImageDataTrain(config.TRAIN.ROOT, config.TRAIN.LIST, config.TRAIN.NOISE_ROOT)
-        data_loader = data.DataLoader(dataset=dataset, batch_size=config.TRAIN.BATCH_SIZE,
+        dataset = ImageDataTrain(config.DATA.TRAIN.ROOT, config.DATA.TRAIN.LIST, config.DATA.TRAIN.NOISE_ROOT)
+        data_loader = data.DataLoader(dataset=dataset, batch_size=config.SOLVER.BATCH_SIZE,
                                       shuffle=shuffle, num_workers=config.SYSTEM.NUM_WORKERS,
                                       pin_memory=pin, drop_last=True)
     if mode == 'val':
         shuffle = True
-        dataset = ImageDataTrain(config.VAL.ROOT, config.VAL.LIST, config.TRAIN.NOISE_ROOT)
-        data_loader = data.DataLoader(dataset=dataset, batch_size=config.VAL.BATCH_SIZE,
+        dataset = ImageDataTrain(config.DATA.VAL.ROOT, config.DATA.VAL.LIST, config.DATA.TRAIN.NOISE_ROOT)
+        data_loader = data.DataLoader(dataset=dataset, batch_size=config.SOLVER.BATCH_SIZE,
                                       shuffle=shuffle, num_workers=config.SYSTEM.NUM_WORKERS,
                                       pin_memory=pin, drop_last=True)
     if mode == 'test':
         shuffle = False
-        dataset = ImageDataTest(config.TEST.ROOT, config.TEST.LIST)
-        data_loader = data.DataLoader(dataset=dataset, batch_size=config.TEST.BATCH_SIZE,
+        dataset = ImageDataTest(config.DATA.TEST.ROOT, config.DATA.TEST.LIST)
+        data_loader = data.DataLoader(dataset=dataset, batch_size=config.SOLVER.BATCH_SIZE,
                                       shuffle=shuffle, num_workers=config.SYSTEM.NUM_WORKERS,
                                       pin_memory=pin, drop_last=True)
     return data_loader
@@ -93,7 +93,7 @@ def load_image(path, noise=False):
     if not os.path.exists(path):
         print('File {} not exists'.format(path))
     im = Image.open(path)
-    im = im.resize(cfg.TRAIN.IMG_SIZE)
+    im = im.resize(cfg.SOLVER.IMG_SIZE)
     in_ = np.array(im, dtype=np.float32)
     if not len(in_.shape)==3 and not noise:
         in_ = in_[np.newaxis, :, :]
@@ -108,7 +108,7 @@ def load_sal_label(path):
     if not os.path.exists(path):
         print('File {} not exists'.format(path))
     im = Image.open(path)
-    im = im.resize(cfg.TRAIN.IMG_SIZE)
+    im = im.resize(cfg.SOLVER.IMG_SIZE)
     label = np.array(im, dtype=np.float32)
     if len(label.shape) == 3:
         label = label[:,:,0]
@@ -121,7 +121,7 @@ def load_noisy_label(path):
     if not os.path.exists(path):
         print('File {} not exists'.format(path))
     im = Image.open(path)
-    im = im.resize(cfg.TRAIN.IMG_SIZE)
+    im = im.resize(cfg.SOLVER.IMG_SIZE)
     label = np.array(im, dtype=np.float32)
     if len(label.shape) == 3:
         label = label[:,:,0]
