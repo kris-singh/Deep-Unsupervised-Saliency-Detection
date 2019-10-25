@@ -16,11 +16,11 @@ from config import cfg
 from dataloader import get_loader
 from model import BaseModule, NoiseModule
 from utils.early_stopping import check_cgt
-from utils.math import max2d, min2d
+from utils.math_utils import max2d, min2d
+from utils.metrics import log_metrics
 from utils.save import save_config
 from utils.setup_logger import setup_logger
 from utils.visualise import visualize_results
-from utils.metrics import log_metrics
 
 EPS = 1e-3
 
