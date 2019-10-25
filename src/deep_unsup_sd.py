@@ -1,15 +1,17 @@
 #!/usr/bin/env python
+
 import argparse
 import os
 import shutil
 import time
+from collections import defaultdict
 
 import numpy as np
 import torch
-from torch.optim import Adam
+from torch import optim as optim
 from torch.utils.tensorboard import SummaryWriter
-from torchvision.transforms.functional import to_tensor
-from torch.optim.lr_scheduler import ReduceLROnPlateau
+import optuna
+from functools import partial
 
 from checkpoint import Checkpointer
 from config import cfg
@@ -25,21 +27,18 @@ from utils.visualise import visualize_results
 EPS = 1e-3
 
 
-def train(cfg, model, optimizer, scheduler, loader, chkpt, writer, offset):
-    h, w = cfg.TRAIN.IMG_SIZE[0], cfg.TRAIN.IMG_SIZE[1]
+def train(cfg, model, optimizer, scheduler, loader, chkpt, logger, writer, device, offset):
+    h, w = cfg.SOLVER.IMG_SIZE[0], cfg.SOLVER.IMG_SIZE[1]
     num_pixels = h*w
-    batch_size = cfg.TRAIN.BATCH_SIZE
+    batch_size = cfg.SOLVER.BATCH_SIZE
     train_loader, val_loader = loader
-    num_batches = len(train_loader)// batch_size
-    device = cfg.SYSTEM.DEVICE
+    num_batches = len(train_loader) // batch_size
     pred_criterion = torch.nn.BCEWithLogitsLoss()
     train_noise = False
     pred_model, noise_model = model
-    val_losses = []
     early_stopping = EarlyStopping(pred_model, val_loader, cfg)
     writer_idx = 0
-    cgt, wait = 0, 0
-    for epoch in range(cfg.TRAIN.EPOCHS):
+    for epoch in range(cfg.SOLVER.EPOCHS):
         pred_losses = []
         noise_losses = []
         losses = []
@@ -52,7 +51,7 @@ def train(cfg, model, optimizer, scheduler, loader, chkpt, writer, offset):
             y = data['sal_label'].to(device)
             if cfg.SYSTEM.EXP_NAME == 'noise':
                     y_noise = data['sal_noisy_label'].to(device)
-                    x = torch.repeat_interleave(x, repeats=cfg.TRAIN.NUM_MAPS, dim=0)
+                    x = torch.repeat_interleave(x, repeats=cfg.SOLVER.NUM_MAPS, dim=0)
                     y_noise = y_noise.view(-1).view(-1, 1, h, w)
             elif cfg.SYSTEM.EXP_NAME == 'avg':
                 y_noise = data['sal_noisy_label'].to(device)
@@ -67,7 +66,7 @@ def train(cfg, model, optimizer, scheduler, loader, chkpt, writer, offset):
 
             pred = pred_model(x)['out']
             if not train_noise and cfg.SYSTEM.EXP_NAME == 'full':
-                pred = torch.repeat_interleave(pred, repeats=cfg.TRAIN.NUM_MAPS, dim=1)
+                pred = torch.repeat_interleave(pred, repeats=cfg.SOLVER.NUM_MAPS, dim=1)
 
             if train_noise and cfg.SYSTEM.EXP_NAME == 'full':
                 noise_prior = noise_model.sample_noise(item_idxs).to(device)
@@ -79,12 +78,12 @@ def train(cfg, model, optimizer, scheduler, loader, chkpt, writer, offset):
             else:
                 y_pred = pred
 
-            pred_loss = pred_criterion(y_pred, y_noise) / (cfg.TRAIN.BATCH_SIZE * cfg.TRAIN.NUM_MAPS)
+            pred_loss = pred_criterion(y_pred, y_noise) / (cfg.SOLVER.BATCH_SIZE * cfg.SOLVER.NUM_MAPS)
             pred_losses.append(pred_loss.squeeze())
 
             noise_loss = 0.0
             if train_noise:
-                pred_var = torch.var(y_noise - pred, 1).view(cfg.TRAIN.BATCH_SIZE, -1)
+                pred_var = torch.var(y_noise - pred, 1).view(cfg.SOLVER.BATCH_SIZE, -1)
                 var, _ = noise_model.get_index_multiple(img_idxs=item_idxs)
                 var = torch.from_numpy(var).float()
                 noise_loss = noise_model.loss(pred_var, var)
@@ -92,7 +91,7 @@ def train(cfg, model, optimizer, scheduler, loader, chkpt, writer, offset):
                 noise_losses.append(noise_loss.squeeze())
 
             optimizer.zero_grad()
-            total_loss = pred_loss + (cfg.TRAIN.LAMBDA * noise_loss)
+            total_loss = pred_loss + (cfg.SOLVER.LAMBDA * noise_loss)
             losses.append(total_loss)
             total_loss.backward()
             optimizer.step()
@@ -101,9 +100,13 @@ def train(cfg, model, optimizer, scheduler, loader, chkpt, writer, offset):
                 logger.debug(f'epoch={epoch}, batch_id={batch_idx}, loss={total_loss}')
                 writer.add_scalar('loss', pred_loss, writer_idx)
                 visualize_results(pred_model, cfg, writer_idx, writer)
+                if y_pred.shape == y.shape: # Hack since we can only compare precision this way
+                    metrics = log_metrics(y_pred, y)
+                    logger.info(str(metrics))
+                    writer.add_scalar(str(metrics), writer_idx)
+
             early_stopping.validate(writer, writer_idx)
 
-            cgt, wait = check_cgt(cfg, pred_model, val_loader, epoch, wait, val_losses)
             if cfg.SYSTEM.EXP_NAME in ['real', 'avg', 'noise']:
                 train_noise = 0
                 if early_stopping.converged:
@@ -117,30 +120,66 @@ def train(cfg, model, optimizer, scheduler, loader, chkpt, writer, offset):
                     logger.info('Updating Noise Variance')
                     noise_model.update(item_idxs, pred_var)
                     early_stopping.reset()
+        scheduler.step(total_loss)
         writer.add_scalar('lr', scheduler.optimizer.param_groups[0]['lr'], writer_idx)
-        metrics = log_metrics(pred, y)
-        logger.info(str(metrics))
-        writer.add_scalar(str(metrics), writer_idx)
         if epoch % cfg.SYSTEM.CHKPT_FREQ == 0:
-            fn = f'checkpoint_epoch_{epoch+offset}'
-            chkpt.save(fn)
+            fn = f'checkpoint_epoch_{cfg.SYSTEM.EXP_NAME}_{epoch+offset}'
+            chkpt.save(fn, epoch=epoch)
     return early_stopping.val_loss.meters['val_loss'].avg
 
-def test(cfg, model, loader, writer):
-    pred_model, _ = model
-    batch_size = cfg.TRAIN.BATCH_SIZE
+
+def test(cfg, model, loader, writer, logger):
+    device = cfg.SYSTEM.DEVICE if torch.cuda.is_available() else 'cpu'
+    batch_size = cfg.SOLVER.BATCH_SIZE
     num_batches = len(loader) // batch_size
-    batch_size = cfg.TRAIN.BATCH_SIZE
     for batch_idx, data in enumerate(loader):
-            pred_model.eval()
+            model.eval()
             writer_idx = batch_idx * batch_size + num_batches * batch_size
             # import ipdb; ipdb.set_trace()
             x = data['image'].to(device)
             y = data['label'].to(device)
-            pred = pred_model(x)['out']
+            pred = model(x)['out']
             metrics = log_metrics(pred, y)
             logger.info(str(metrics))
             writer.add_scalar(str(metrics), writer_idx)
+
+
+def objective(trial, cfg, model, search):
+    device = cfg.SYSTEM.DEVICE if torch.cuda.is_available() else 'cpu'
+    # load the data
+    train_loader = get_loader(cfg, 'train')
+    val_loader = get_loader(cfg, 'val')
+    prediction_model, noise_model = model
+    prediction_model.to(device)
+    lr = cfg.SOLVER.TRIAL if not search['lr'] else trial.suggest_loguniform('lr', low=1e-6, high=1e-1)
+    momentum = cfg.SOLVER.MOMENTUM if not search['momentum'] else trial.suggest_uniform('momentum', low=0.5, high=0.9)
+    weight_decay = cfg.SOLVER.WEIGHT_DECAY
+    betas = cfg.SOLVER.BETAS
+    step_size = cfg.SOLVER.STEP_SIZE if search['step_size'] else trial.suggest_discrete_uniform('step_size', low=10, high=100, q=10)
+    factor = cfg.SOLVER.FACTOR if search['factor'] else trial.suggest_uniform('factor', low=0.1, high=0.4)
+
+    # Optimizer
+    if cfg.SOLVER.OPTIMIZER == 'Adam':
+        optimizer = optim.Adam(prediction_model.parameters(), lr=lr, weight_decay=weight_decay, betas=betas)
+    elif cfg.SOLVER.OPTIMIZER == 'SGD':
+        optimizer = optim.SGD(prediction_model.parameters(), lr=lr, weight_decay=weight_decay, momentum=momentum)
+    if cfg.SOLVER.SCHEDULER == 'StepLR':
+        scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=step_size, gamma=factor)
+    elif cfg.SOLVER.SCHEDULER == 'ReducePlateuLR':
+        scheduler = optim.lr_scheduler.ReducePlateuLR(optimizer,
+                                                      step_size=step_size,
+                                                      min_lr=cfg.SOLVER.MIN_LR,
+                                                      paitence=cfg.SOLVER.PAITENCE)
+    # checkpointer
+    chkpt = Checkpointer(prediction_model, optimizer, scheduler=scheduler, save_dir=chk_dir, logger=logger,
+                         save_to_disk=True)
+    offset = 0
+    checkpointer = chkpt.load()
+    if not checkpointer == {}:
+        offset = checkpointer.pop('epoch')
+    loader = [train_loader, val_loader]
+    print('Same optimizer, {scheduler.optimizer == optimizer}')
+    return train(cfg, model, optimizer, scheduler, loader, chkpt, logger, writer, device, offset)
 
 
 if __name__ == "__main__":
@@ -148,7 +187,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--config_file', help='path of config file', default=None, type=str)
     parser.add_argument('--clean_run', help='run from scratch', default=False, type=bool)
-    parser.add_argument('opts', help='modify arguments', default=None,nargs=argparse.REMAINDER)
+    parser.add_argument('opts', help='modify arguments', default=None, nargs=argparse.REMAINDER)
     args = parser.parse_args()
     # config setup
     if args.config_file is not None:
@@ -163,39 +202,23 @@ if __name__ == "__main__":
         if os.path.exists(f'../experiments/runs/{cfg.SYSTEM.EXP_NAME}'):
             shutil.rmtree(f'../experiments/runs/{cfg.SYSTEM.EXP_NAME}')
             time.sleep(30)
-    device = cfg.SYSTEM.DEVICE if torch.cuda.is_available() else 'cpu'
+
+    search = defaultdict()
+    search['lr'], search['momentum'], search['factor'], search['step_size'] = [True]*4
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
-    torch.manual_seed(cfg.TRAIN.SEED)
-    np.random.seed(cfg.TRAIN.SEED)
-    logdir, chk_dir = save_config(cfg.TRAIN.SAVE_ROOT, cfg)
+    torch.manual_seed(cfg.SYSTEM.SEED)
+    np.random.seed(cfg.SYSTEM.SEED)
+    logdir, chk_dir = save_config(cfg.SAVE_ROOT, cfg)
     writer = SummaryWriter(log_dir=logdir)
-
     # setup logger
     logger = setup_logger(cfg.SYSTEM.EXP_NAME)
-
-    # load the data
-    train_loader = get_loader(cfg, 'train')
-    val_loader = get_loader(cfg, 'val')
-    test_loader = get_loader(cfg, 'test')
-
     # Model
     prediction_model = BaseModule(cfg)
     noise_model = NoiseModule(cfg)
-    prediction_model.to(device)
-    # Optimizer
-    optimizer = Adam(prediction_model.parameters(), lr=cfg.TRAIN.LR, betas=cfg.TRAIN.BETAS, eps=1e-08, weight_decay=0)
-    scheduler = ReduceLROnPlateau(optimizer, mode='min', min_lr=1e-6, patience=50, factor=0.09)
-    # checkpointer
-    chkpt = Checkpointer(prediction_model, optimizer, scheduler=scheduler, save_dir=chk_dir, logger=logger, save_to_disk=True)
     model = [prediction_model, noise_model]
-    fn = chkpt.get_checkpoint_file()
-    offset = 0
-    if not fn == '':
-        start_idx = fn.rfind('_') + 1
-        end_idx = fn.rfind('.')
-        offset = int(fn[start_idx:end_idx])
-    chkpt.load()
-    loader = [train_loader, val_loader]
-    train(cfg, model, optimizer, scheduler, loader, chkpt, writer, offset)
-    test(cfg, model, test_loader, writer)
+    study = optuna.create_study(study_name=f"exp_name:{cfg.SYSTEM.EXP_NAME}", storage="sqlite:///example.db", load_if_exists=True)
+    partial_objective = partial(objective, cfg=cfg, model=model, search=search)
+    study.optimize(partial_objective, n_trials=100)
+    test_loader = get_loader(cfg, 'test')
+    test(cfg, prediction_model, test_loader, writer, logger)
