@@ -12,6 +12,7 @@ from config import cfg
 import numpy as np
 import random
 
+
 class ImageDataTrain(data.Dataset):
     def __init__(self, data_root, data_list, noise_root):
         self.sal_root = data_root
@@ -21,7 +22,6 @@ class ImageDataTrain(data.Dataset):
             self.sal_list = [x.strip() for x in f.readlines()]
 
         self.sal_num = len(self.sal_list)
-
 
     def __getitem__(self, item):
         im_name = self.sal_list[item % self.sal_num].split()[0]
@@ -43,6 +43,7 @@ class ImageDataTrain(data.Dataset):
 
     def __len__(self):
         return self.sal_num
+
 
 class ImageDataTest(data.Dataset):
     def __init__(self, data_root, data_list):
