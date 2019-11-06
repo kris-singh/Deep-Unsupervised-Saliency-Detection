@@ -58,13 +58,13 @@ class NoiseModule:
         """
         if arr is None:
             arr = self.noise_variance
-            noise = np.zeros((len(img_idxs), self.num_pixels), dtype=np.float)
-            noise_idx = np.zeros((len(img_idxs), self.num_pixels), dtype=np.float)
-            for key, img_idx in enumerate(img_idxs):
-                idx = img_idx * self.num_pixels
-                noise[key] = arr[idx:idx+self.num_pixels]
-                noise_idx[key] = np.arange(idx, idx+self.num_pixels)
-            return noise, noise_idx
+        noise = np.zeros((len(img_idxs), self.num_pixels), dtype=np.float)
+        noise_idx = np.zeros((len(img_idxs), self.num_pixels), dtype=np.float)
+        for key, img_idx in enumerate(img_idxs):
+            idx = img_idx * self.num_pixels
+            noise[key] = arr[idx:idx+self.num_pixels]
+            noise_idx[key] = np.arange(idx, idx+self.num_pixels)
+        return noise, noise_idx
 
     def loss_fast(self, var1, var2):
         """
