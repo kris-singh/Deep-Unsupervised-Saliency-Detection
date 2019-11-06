@@ -129,7 +129,7 @@ class NoiseModule:
 
 
 def BaseModule(cfg):
-    model =  deeplabv3_resnet101(pretrained=True)
+    model = deeplabv3_resnet101(pretrained=True)
     model.classifier[4] = nn.Conv2d(256, 1, kernel_size=(1, 1), stride=(1, 1))
     model.aux_classifier[4] = nn.Conv2d(256, 1, kernel_size=(1, 1), stride=(1, 1))
     return model
