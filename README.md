@@ -349,19 +349,19 @@ validation loss, paitence of 5 epochs
     </tbody>
     </table>
 
-![img](./results/sgd_exp/samples/sgd_avg_nb.png "Average Exp Sample Maps")
+![Average Exp Sample Maps](./results/sgd_exp/samples/sgd_avg_nb.png "Average Exp Sample Maps")
 
-![img](./results/sgd_exp/samples/sgd_avg.png "Average Exp Sample Threshold 0.5")
+![Average Exp Sample Threshold 0.5](./results/sgd_exp/samples/sgd_avg.png "Average Exp Sample Threshold 0.5")
 
-![img](./results/sgd_exp/samples/sgd_real_nb.png "Real Exp Sample Maps")
+![Real Exp Sample Maps](./results/sgd_exp/samples/sgd_real_nb.png "Real Exp Sample Maps")
 
-![img](./results/sgd_exp/samples/sgd_real.png "Real Exp Sample Maps Threshold 0.5")
+![Real Exp Sample Maps Threshold 0.5](./results/sgd_exp/samples/sgd_real.png "Real Exp Sample Maps Threshold 0.5")
 
-![img](./results/sgd_exp/samples/sgd_noise_nb.png "Noise Exp Sample Maps")
+![Noise Exp Sample Maps](./results/sgd_exp/samples/sgd_noise_nb.png "Noise Exp Sample Maps")
 
-![img](./results/sgd_exp/samples/sgd_noise.png "Noise Exp Sample Maps Thresold 0.5")
+![Noise Exp Sample Maps Thresold 0.5](./results/sgd_exp/samples/sgd_noise.png "Noise Exp Sample Maps Thresold 0.5")
 
-![img](./results/sgd_exp/samples/sgd_full_nb.png "Full Exp Sample Maps")
+![Full Exp Sample Maps](./results/sgd_exp/samples/sgd_full_nb.png "Full Exp Sample Maps")
 
-![img](./results/sgd_exp/samples/sgd_full.png "Full Exp Sample Maps Thresold 0.5")
+![Full Exp Sample Maps Thresold 0.5](./results/sgd_exp/samples/sgd_full.png "Full Exp Sample Maps Thresold 0.5")
 
