@@ -1,0 +1,14 @@
+SYSTEM:
+  DEVICE: 'cuda:6'
+  EXP_NAME: 'base_exp_optuna'
+  WAIT_TIME: 50
+SOLVER:
+  BATCH_SIZE: 2
+  NUM_IMG: 10
+  NUM_MAPS: 3
+  IMG_SIZE: (128, 128)
+  EPOCHS: 1
+  OPTIMIZER: 'Adam'
+  BETAS: (0.90, 0.99)
+  LR: 0.0001
+  MIN_LR: 1e-6

@@ -1,0 +1,26 @@
+SYSTEM:
+  DEVICE: 'cuda:6'
+  EXP_NAME: 'sgd-avg'
+  EXP_TYPE: 'avg'
+  WAIT_TIME: 5
+SOLVER:
+  BATCH_SIZE: 16
+  NUM_IMG: 1500
+  NUM_MAPS: 3
+  IMG_SIZE: (256, 256)
+  EPOCHS: 20
+  OPTIMIZER: 'SGD'
+  LR: 1e-3
+  SCHEDULER: 'ReduceLROnPlateau'
+  FACTOR: 0.9
+  PAITENCE: 1
+  THRESHOLD: 1e-4
+  MIN_LR: 1e-16
+  COOLDOWN: 1
+DATA:
+  TRAIN:
+    LIST: '/data/workspaces/krish/sd/msrab_hkuis/train.lst'
+  VAL:
+    LIST: '/data/workspaces/krish/sd/msrab_hkuis/val.lst'
+  TEST:
+    LIST: '/data/workspaces/krish/sd/msrab_hkuis/test.lst'
