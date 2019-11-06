@@ -2,6 +2,11 @@
 import torch
 import logging
 
+import torch
+
+from utils.meter import MetricLogger
+from utils.metrics import log_metrics
+
 
 def check_cgt(cfg, model, val_loader, epoch_idx, wait, val_losses):
     logger = logging.getLogger(cfg.SYSTEM.EXP_NAME)
