@@ -103,12 +103,10 @@ class NoiseModule:
         samples = torch.zeros(len(idxs), self.num_maps, self.h, self.w)
         for idx, img_idx in enumerate(idxs):
             var, var_idx = self.get_index(self.noise_variance, img_idx)
-            var += 1e-6
-            var = torch.diag(var).to(self.device)
-            mean = torch.zeros(var.shape[0]).to(self.device)
-            dist = torch.distributions.MultivariateNormal(mean, var)
+            var = var.view(self.h, self.w).to(self.device)
             for map_idx in range(self.num_maps):
-                sample = dist.sample().view(self.h, self.w)
+                # elementwise mutliplication with prior variance for each image of samples from N(0, 1)
+                sample = var * torch.zeros(self.h, self.w).normal_().to(self.device)
                 samples[idx][map_idx] = sample
         return samples
 
