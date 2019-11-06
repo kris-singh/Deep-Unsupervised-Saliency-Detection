@@ -30,7 +30,6 @@ class NoiseModule:
         self.emp_var = torch.zeros(self.num_imgs * self.num_pixels)
 
     def get_index(self, arr=None, img_idx=None):
-        arr = self.noise_variance
         """
         Function for fetching indexes of pixels for img_idx
         Args
