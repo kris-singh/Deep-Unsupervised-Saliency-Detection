@@ -24,8 +24,10 @@ class NoiseModule:
         self.num_pixels = self.h * self.w
         self.alpha = cfg.NOISE.ALPHA
         self.device = cfg.SYSTEM.DEVICE
+        # prior variance of the noise distribution, Initalized with zeros(!section 3.2 last para)
         self.noise_variance = torch.zeros(self.num_imgs * self.num_pixels)
-        self.mean = torch.zeros(self.noise_variance.shape[0])
+        # emperical variance, observed variance between prediction and unsup labels
+        self.emp_var = torch.zeros(self.num_imgs * self.num_pixels)
 
     def get_index(self, arr=None, img_idx=None):
         arr = self.noise_variance
@@ -118,15 +120,11 @@ class NoiseModule:
         """
         print("Updating Noise")
         print("----------------------------------------")
-        pred_var = pred_var.detach().cpu()
-        var, update_index = self.get_index_multiple(img_idxs=idxs)
-        var = torch.tensor(var, dtype=torch.float).cpu()
-        var = var
-        var = torch.sqrt(var**2 + self.alpha * (pred_var - var)**2)
-        for idx, u_idx in enumerate(update_index):
-            u_idx = u_idx.astype(np.int)
-            self.noise_variance[u_idx] = torch.sqrt(var[idx])
-        print(self.noise_variance)
+        # import ipdb; ipdb.set_trace()
+        # See equation 7, !Note: we have saved the variances and not sd, hence no need for squaring
+        self.noise_variance = self.noise_variance + self.alpha * (self.emp_var - self.noise_variance)
+        print(f'Max: {torch.max(self.noise_variance)}, Min :{torch.min(self.noise_variance)}')
+        self.logger.info(f"Noise Variance: {self.noise_variance}")
         print("----------------------------------------")
 
 
