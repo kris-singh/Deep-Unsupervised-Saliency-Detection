@@ -349,6 +349,7 @@ validation loss, paitence of 5 epochs
     </tbody>
     </table>
 
+Average Exp Sample Maps
 ![Average Exp Sample Maps](./results/sgd_exp/samples/sgd_avg_nb.png "Average Exp Sample Maps")
 
 ![Average Exp Sample Threshold 0.5](./results/sgd_exp/samples/sgd_avg.png "Average Exp Sample Threshold 0.5")
