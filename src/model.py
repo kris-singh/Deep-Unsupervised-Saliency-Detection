@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+import logging
+
 import numpy as np
 import torch
 import torch.nn as nn
@@ -21,6 +23,7 @@ class NoiseModule:
         self.num_imgs = cfg.TRAIN.NUM_IMG
         self.num_maps = cfg.TRAIN.NUM_MAPS
         self.h, self.w = cfg.TRAIN.IMG_SIZE
+        self.logger = logging.getLogger(str(cfg.SYSTEM.EXP_NAME) + ".noise_module")
         self.num_pixels = self.h * self.w
         self.alpha = cfg.NOISE.ALPHA
         self.device = cfg.SYSTEM.DEVICE
