@@ -3,3 +3,4 @@ __pycache__/*
 noisy_gt.py
 dataset_test/*
 log.txt
+.*
