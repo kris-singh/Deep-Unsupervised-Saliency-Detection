@@ -10,6 +10,16 @@ from collections import defaultdict, Iterable
 
 class NoiseModule:
     def __init__(self, cfg):
+        """
+        Noise Module implements the noise mdoel from the paper.
+        It maintains a variance for each pixel of each image.
+        sd = sqrt(var), we store the variances for each of the prior distributions
+        Sampling is done using var * N(0, 1)
+        It is responsible for sampling from the noise distribution, loss calculation and updating the variance.
+        Args
+        ---
+        cfg: (yacs.CfgNode) base configuration for the experiment.
+        """
         super(NoiseModule, self).__init__()
         self.num_imgs = cfg.TRAIN.NUM_IMG
         self.num_maps = cfg.TRAIN.NUM_MAPS
@@ -22,10 +32,31 @@ class NoiseModule:
 
     def get_index(self, arr=None, img_idx=None):
         arr = self.noise_variance
+        """
+        Function for fetching indexes of pixels for img_idx
+        Args
+        ---
+        img_idx: (int) index of image
+        arr: (list) value array to fetch values from
+        Returns
+        ---
+        values, idxs
+        values: arr[idxs]
+        idxs: starting and ending of pixels for the image
+        """
         idx = img_idx * self.num_pixels
         return arr[idx:idx+self.num_pixels], np.arange(idx, idx+self.num_pixels)
 
     def get_index_multiple(self, arr=None, img_idxs=None):
+        """
+        Function for fetching indexes of pixels for img_idx
+        Args
+        ---
+        img_idx: (list[int]) indexs of image
+        arr: (list) value array to fetch values from
+        Returns
+        --- values: np.array, (len(img_idxs), num_pixels) idxs: starting and ending of pixels for the image
+        """
             arr = self.noise_variance
             noise = np.zeros((len(img_idxs), self.num_pixels), dtype=np.float)
             noise_idx = np.zeros((len(img_idxs), self.num_pixels), dtype=np.float)
@@ -50,6 +81,16 @@ class NoiseModule:
         return noise_loss.to(self.device)
 
     def sample_noise(self, idxs):
+        """
+        Samples noise from Normal distribution with prior variance.
+        Args
+        ---
+        idxs: List[int]
+        sample from standard normal and transform using var for idxs
+        Returns
+        ---
+        samples: np.array, noise samples of shape (len(idxs), NUM_MAPS, 128, 128)
+        """
         samples = torch.zeros(len(idxs), self.num_maps, self.h, self.w)
         for idx, img_idx in enumerate(idxs):
             var, var_idx = self.get_index(self.noise_variance, img_idx)
@@ -62,7 +103,11 @@ class NoiseModule:
                 samples[idx][map_idx] = sample
         return samples
 
-    def update(self, idxs, pred_var):
+    def update(self):
+        """
+        Updates the prior variance for each pixel of each image by emp variance
+        !Note: Emp variance needs to be updated before calling this.
+        """
         print("Updating Noise")
         print("----------------------------------------")
         pred_var = pred_var.detach().cpu()
