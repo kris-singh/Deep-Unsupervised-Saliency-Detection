@@ -2,11 +2,8 @@
 import numpy as np
 import torch
 import torch.nn as nn
-from torch.distributions.kl import kl_divergence
-from torch.distributions.multivariate_normal import MultivariateNormal
 from torchvision.models.segmentation import deeplabv3_resnet101
 
-from collections import defaultdict, Iterable
 
 class NoiseModule:
     def __init__(self, cfg):
@@ -69,19 +66,27 @@ class NoiseModule:
                 noise_idx[key] = np.arange(idx, idx+self.num_pixels)
             return noise, noise_idx
 
-    def loss(self, var1, var2):
-        var1 += 1e-6
-        var2 += 1e-6
+    def loss_fast(self, var1, var2):
+        """
+        Computes the loss using Eq 6
+        Args
+        ----
+        var1: variance of q distribution, prior variance
+        var2: variance of p distribution, predictive variance
+        Returns
+        ---
+        noise loss:  float noise loss per image Note! different from paper which uses sum of noise
+        """
         noise_loss = 0
-        assert var1.dim() == 2
-        assert var2.dim() == 2
         for idx in range(var1.shape[0]):
-            covar1 = torch.diag(var1[idx]).cpu()
-            covar2 = torch.diag(var2[idx]).cpu()
-            mean = torch.zeros(covar1.shape[0]).cpu()
-            dist1, dist2 = MultivariateNormal(mean, covar1), MultivariateNormal(mean, covar2)
-            noise_loss += kl_divergence(dist1, dist2)
-        return noise_loss.to(self.device)
+            covar1 = var1[idx].to(self.device) + 1e-6
+            covar2 = var2[idx].to(self.device) + 1e-6
+            ratio = 1. * (covar1 / covar2)
+            loss = -0.5 * (torch.log(ratio) - ratio + 1).to(self.device)
+            loss = abs(loss)
+            # See Eq 6 from paper and https://github.com/pytorch/pytorch/blob/master/torch/distributions/kl.py#L394
+            noise_loss += torch.sum(loss) / var1.shape[1]
+        return noise_loss / var1.shape[0]
 
     def sample_noise(self, idxs):
         """
