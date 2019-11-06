@@ -44,6 +44,8 @@ class NoiseModule:
         values: arr[idxs]
         idxs: starting and ending of pixels for the image
         """
+        if arr is None:
+            arr = self.noise_variance
         idx = img_idx * self.num_pixels
         return arr[idx:idx+self.num_pixels], np.arange(idx, idx+self.num_pixels)
 
@@ -57,6 +59,7 @@ class NoiseModule:
         Returns
         --- values: np.array, (len(img_idxs), num_pixels) idxs: starting and ending of pixels for the image
         """
+        if arr is None:
             arr = self.noise_variance
             noise = np.zeros((len(img_idxs), self.num_pixels), dtype=np.float)
             noise_idx = np.zeros((len(img_idxs), self.num_pixels), dtype=np.float)
